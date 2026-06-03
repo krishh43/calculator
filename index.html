@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    :root {
+      --bg: #0c0e12;
+      --card: rgba(20, 23, 30, 0.85);
+      --card-solid: #14171e;
+      --border: #252a36;
+      --fg: #e8eaf0;
+      --muted: #5a6280;
+      --accent: #f0a030;
+      --accent-dim: rgba(240, 160, 48, 0.12);
+      --accent-glow: rgba(240, 160, 48, 0.25);
+      --btn-bg: #1a1e28;
+      --btn-hover: #222738;
+      --btn-active: #2a3045;
+      --op-bg: #1f2230;
+      --danger: #e85454;
+      --success: #34d399;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Background effects */
+    .bg-noise {
+      position: fixed; inset: 0; z-index: 0; opacity: 0.03;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 256px;
+    }
+
+    .bg-gradient {
+      position: fixed; inset: 0; z-index: 0;
+      background: radial-gradient(ellipse 600px 500px at 30% 20%, rgba(240,160,48,0.06), transparent),
+                  radial-gradient(ellipse 500px 600px at 70% 80%, rgba(52,211,153,0.04), transparent);
+    }
+
+    .orb {
+      position: fixed; border-radius: 50%; filter: blur(100px); pointer-events: none; z-index: 0;
+    }
+    .orb-1 {
+      width: 500px; height: 500px; top: -200px; left: -150px;
+      background: rgba(240,160,48,0.08);
+      animation: orbFloat1 12s ease-in-out infinite;
+    }
+    .orb-2 {
+      width: 400px; height: 400px; bottom: -150px; right: -100px;
+      background: rgba(52,211,153,0.06);
+      animation: orbFloat2 15s ease-in-out infinite;
+    }
+
+    @keyframes orbFloat1 {
+      0%,100% { transform: translate(0,0); }
+      50% { transform: translate(60px,40px); }
+    }
+    @keyframes orbFloat2 {
+      0%,100% { transform: translate(0,0); }
+      50% { transform: translate(-50px,-30px); }
+    }
+
+    /* Layout */
+    .app-wrapper {
+      position: relative; z-index: 2;
+      display: flex; gap: 20px; align-items: stretch;
+      max-width: 720px; width: 94%;
+    }
+
+    /* Calculator card */
+    .calc-card {
+      flex: 0 0 340px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 24px;
+      backdrop-filter: blur(30px);
+      box-shadow: 0 20px 80px rgba(0,0,0,0.5);
+      display: flex; flex-direction: column; gap: 16px;
+    }
+
+    /* Display */
+    .display {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px 22px 18px;
+      min-height: 120px;
+      display: flex; flex-direction: column;
+      justify-content: flex-end;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .display::after {
+      content: '';
+      position: absolute; bottom: 0; left: 22px; right: 22px; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0.3;
+      transition: opacity 0.3s;
+    }
+    .display.active::after { opacity: 0.8; }
+
+    .expression {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px; font-weight: 400;
+      color: var(--muted);
+      text-align: right;
+      min-height: 20px;
+      word-break: break-all;
+      line-height: 1.4;
+      transition: color 0.2s;
+      overflow-y: auto;
+      max-height: 48px;
+    }
+
+    .result {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 38px; font-weight: 700;
+      color: var(--fg);
+      text-align: right;
+      line-height: 1.2;
+      margin-top: 6px;
+      transition: color 0.3s, transform 0.15s;
+      word-break: break-all;
+    }
+    .result.pop {
+      animation: resultPop 0.2s ease;
+    }
+    @keyframes resultPop {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+      100% { transform: scale(1); }
+    }
+    .result.error-shake {
+      animation: errorShake 0.4s ease;
+      color: var(--danger);
+    }
+    @keyframes errorShake {
+      0%,100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+
+    /* Mode toggle */
+    .mode-bar {
+      display: flex; gap: 6px;
+    }
+    .mode-btn {
+      flex: 1; padding: 8px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 12px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 1.5px;
+      background: transparent; border: 1px solid var(--border);
+      border-radius: 10px; color: var(--muted);
+      cursor: pointer; transition: all 0.25s;
+    }
+    .mode-btn.active {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .mode-btn:hover:not(.active) {
+      border-color: var(--muted);
+      color: var(--fg);
+    }
+
+    /* Button grid */
+    .btn-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .btn-grid.scientific {
+      grid-template-columns: repeat(5, 1fr);
+    }
+
+    .btn {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 18px; font-weight: 600;
+      padding: 16px 8px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--btn-bg);
+      color: var(--fg);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      position: relative; overflow: hidden;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:hover {
+      background: var(--btn-hover);
+      border-color: #353a4a;
+      transform: translateY(-1px);
+    }
+    .btn:active {
+      background: var(--btn-active);
+      transform: translateY(0) scale(0.96);
+    }
+    .btn.pressed {
+      background: var(--btn-active);
+      transform: scale(0.96);
+    }
+
+    /* Ripple */
+    .btn .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+      transform: scale(0);
+      animation: rippleAnim 0.5s ease-out forwards;
+      pointer-events: none;
+    }
+    @keyframes rippleAnim {
+      to { transform: scale(4); opacity: 0; }
+    }
+
+    /* Special button styles */
+    .btn.op {
+      background: var(--op-bg);
+      color: var(--accent);
+      border-color: rgba(240,160,48,0.15);
+    }
+    .btn.op:hover {
+      background: rgba(240,160,48,0.1);
+      border-color: rgba(240,160,48,0.3);
+    }
+
+    .btn.func {
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .btn.danger {
+      color: var(--danger);
+      border-color: rgba(232,84,84,0.15);
+    }
+    .btn.danger:hover {
+      background: rgba(232,84,84,0.08);
+      border-color: rgba(232,84,84,0.3);
+    }
+
+    .btn.equals {
+      background: linear-gradient(135deg, var(--accent), #e08c18);
+      color: var(--bg);
+      border: none;
+      font-size: 22px;
+      font-weight: 700;
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+    .btn.equals:hover {
+      box-shadow: 0 6px 30px rgba(240,160,48,0.35);
+      transform: translateY(-2px);
+    }
+    .btn.equals:active {
+      transform: translateY(0) scale(0.96);
+      box-shadow: 0 2px 10px var(--accent-glow);
+    }
+
+    .btn.wide { grid-column: span 2; }
+
+    /* Scientific buttons */
+    .btn.sci {
+      font-size: 13px;
+      padding: 14px 6px;
+      color: var(--success);
+      border-color: rgba(52,211,153,0.12);
+      background: rgba(52,211,153,0.04);
+    }
+    .btn.sci:hover {
+      background: rgba(52,211,153,0.1);
+      border-color: rgba(52,211,153,0.25);
+    }
+
+    /* History panel */
+    .history-panel {
+      flex: 1; min-width: 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 24px;
+      backdrop-filter: blur(30px);
+      box-shadow: 0 20px 80px rgba(0,0,0,0.4);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+
+    .history-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px; flex-shrink: 0;
+    }
+    .history-header h2 {
+      font-size: 14px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 2px;
+      color: var(--muted);
+    }
+    .history-clear-btn {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 12px; font-weight: 600;
+      padding: 6px 12px; border-radius: 8px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--muted); cursor: pointer;
+      transition: all 0.2s;
+    }
+    .history-clear-btn:hover {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .history-list {
+      flex: 1; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 6px;
+      padding-right: 4px;
+    }
+    .history-list::-webkit-scrollbar { width: 4px; }
+    .history-list::-webkit-scrollbar-track { background: transparent; }
+    .history-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .history-empty {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: var(--muted); font-size: 13px; gap: 8px;
+    }
+    .history-empty i { font-size: 28px; opacity: 0.4; }
+
+    .history-item {
+      padding: 12px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      animation: histSlideIn 0.3s ease backwards;
+    }
+    .history-item:hover {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    @keyframes histSlideIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .history-expr {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px; color: var(--muted);
+      margin-bottom: 4px;
+      word-break: break-all;
+    }
+    .history-result {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 18px; font-weight: 700;
+      color: var(--accent);
+      word-break: break-all;
+    }
+
+    /* Toast notification */
+    .toast {
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--card-solid); border: 1px solid var(--border);
+      padding: 12px 24px; border-radius: 12px;
+      font-size: 14px; color: var(--fg);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+      opacity: 0; transition: all 0.3s ease;
+      z-index: 100; pointer-events: none;
+    }
+    .toast.show {
+      opacity: 1; transform: translateX(-50%) translateY(0);
+    }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      .app-wrapper {
+        flex-direction: column;
+        align-items: center;
+      }
+      .calc-card {
+        flex: none; width: 100%; max-width: 380px;
+      }
+      .history-panel {
+        width: 100%; max-width: 380px;
+        max-height: 260px;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .calc-card { padding: 16px; }
+      .btn { padding: 14px 6px; font-size: 16px; }
+      .result { font-size: 30px; }
+      .btn-grid { gap: 7px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-noise"></div>
+  <div class="bg-gradient"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+
+  <div class="app-wrapper">
+    <!-- Calculator -->
+    <div class="calc-card" role="application" aria-label="Calculator">
+      <div class="display" id="display">
+        <div class="expression" id="expression" aria-live="polite"></div>
+        <div class="result" id="result">0</div>
+      </div>
+
+      <div class="mode-bar">
+        <button class="mode-btn active" id="modeBasic" aria-label="Basic mode">Basic</button>
+        <button class="mode-btn" id="modeSci" aria-label="Scientific mode">Scientific</button>
+      </div>
+
+      <div class="btn-grid" id="btnGrid">
+        <!-- Built dynamically by JS -->
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="history-panel" aria-label="Calculation history">
+      <div class="history-header">
+        <h2>History</h2>
+        <button class="history-clear-btn" id="clearHistory" aria-label="Clear history">Clear</button>
+      </div>
+      <div class="history-list" id="historyList">
+        <div class="history-empty" id="historyEmpty">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+          <span>No calculations yet</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    /* ============ STATE ============ */
+    let currentInput = '0';
+    let expression = '';
+    let lastResult = null;
+    let justEvaluated = false;
+    let history = [];
+    let isScientific = false;
+
+    /* ============ DOM ============ */
+    const display = document.getElementById('display');
+    const exprEl = document.getElementById('expression');
+    const resultEl = document.getElementById('result');
+    const btnGrid = document.getElementById('btnGrid');
+    const modeBasic = document.getElementById('modeBasic');
+    const modeSci = document.getElementById('modeSci');
+    const historyList = document.getElementById('historyList');
+    const historyEmpty = document.getElementById('historyEmpty');
+    const clearHistoryBtn = document.getElementById('clearHistory');
+    const toastEl = document.getElementById('toast');
+
+    /* ============ BUTTON DEFINITIONS ============ */
+    const basicButtons = [
+      { label: 'AC', type: 'danger', action: 'clear' },
+      { label: '(', type: 'func', action: 'paren_open' },
+      { label: ')', type: 'func', action: 'paren_close' },
+      { label: '\u00F7', type: 'op', action: 'op', value: '/' },
+
+      { label: '7', type: 'num', action: 'num', value: '7' },
+      { label: '8', type: 'num', action: 'num', value: '8' },
+      { label: '9', type: 'num', action: 'num', value: '9' },
+      { label: '\u00D7', type: 'op', action: 'op', value: '*' },
+
+      { label: '4', type: 'num', action: 'num', value: '4' },
+      { label: '5', type: 'num', action: 'num', value: '5' },
+      { label: '6', type: 'num', action: 'num', value: '6' },
+      { label: '\u2212', type: 'op', action: 'op', value: '-' },
+
+      { label: '1', type: 'num', action: 'num', value: '1' },
+      { label: '2', type: 'num', action: 'num', value: '2' },
+      { label: '3', type: 'num', action: 'num', value: '3' },
+      { label: '+', type: 'op', action: 'op', value: '+' },
+
+      { label: '\u00B1', type: 'func', action: 'negate' },
+      { label: '0', type: 'num', action: 'num', value: '0' },
+      { label: '.', type: 'num', action: 'decimal' },
+      { label: '=', type: 'equals', action: 'evaluate' },
+    ];
+
+    const sciButtons = [
+      { label: 'sin', type: 'sci', action: 'func', value: 'Math.sin(' },
+      { label: 'cos', type: 'sci', action: 'func', value: 'Math.cos(' },
+      { label: 'tan', type: 'sci', action: 'func', value: 'Math.tan(' },
+      { label: 'log', type: 'sci', action: 'func', value: 'Math.log10(' },
+      { label: 'ln', type: 'sci', action: 'func', value: 'Math.log(' },
+
+      { label: 'x\u00B2', type: 'sci', action: 'postfix', value: '**2' },
+      { label: '\u221A', type: 'sci', action: 'func', value: 'Math.sqrt(' },
+      { label: 'x\u02B8', type: 'sci', action: 'op', value: '**' },
+      { label: '\u03C0', type: 'sci', action: 'const', value: 'Math.PI' },
+      { label: 'e', type: 'sci', action: 'const', value: 'Math.E' },
+
+      { label: 'AC', type: 'danger', action: 'clear' },
+      { label: '(', type: 'func', action: 'paren_open' },
+      { label: ')', type: 'func', action: 'paren_close' },
+      { label: '\u00F7', type: 'op', action: 'op', value: '/' },
+      { label: '\u232B', type: 'func', action: 'backspace' },
+
+      { label: '7', type: 'num', action: 'num', value: '7' },
+      { label: '8', type: 'num', action: 'num', value: '8' },
+      { label: '9', type: 'num', action: 'num', value: '9' },
+      { label: '\u00D7', type: 'op', action: 'op', value: '*' },
+      { label: '%', type: 'op', action: 'op', value: '%' },
+
+      { label: '4', type: 'num', action: 'num', value: '4' },
+      { label: '5', type: 'num', action: 'num', value: '5' },
+      { label: '6', type: 'num', action: 'num', value: '6' },
+      { label: '\u2212', type: 'op', action: 'op', value: '-' },
+      { label: '1/x', type: 'sci', action: 'wrap', value: '1/(' },
+
+      { label: '1', type: 'num', action: 'num', value: '1' },
+      { label: '2', type: 'num', action: 'num', value: '2' },
+      { label: '3', type: 'num', action: 'num', value: '3' },
+      { label: '+', type: 'op', action: 'op', value: '+' },
+      { label: 'n!', type: 'sci', action: 'factorial' },
+
+      { label: '\u00B1', type: 'func', action: 'negate' },
+      { label: '0', type: 'num', action: 'num', value: '0' },
+      { label: '.', type: 'num', action: 'decimal' },
+      { label: '=', type: 'equals', action: 'evaluate', wide: true },
+    ];
+
+    /* ============ RENDER BUTTONS ============ */
+    function renderButtons() {
+      const buttons = isScientific ? sciButtons : basicButtons;
+      btnGrid.innerHTML = '';
+      btnGrid.className = 'btn-grid' + (isScientific ? ' scientific' : '');
+
+      buttons.forEach(b => {
+        const btn = document.createElement('button');
+        btn.className = 'btn ' + b.type;
+        if (b.wide) btn.classList.add('wide');
+        btn.textContent = b.label;
+        btn.setAttribute('aria-label', b.label);
+
+        btn.addEventListener('click', (e) => {
+          createRipple(e, btn);
+          handleAction(b);
+        });
+
+        btnGrid.appendChild(btn);
+      });
+    }
+
+    /* ============ RIPPLE EFFECT ============ */
+    function createRipple(e, btn) {
+      const rect = btn.getBoundingClientRect();
+      const ripple = document.createElement('span');
+      ripple.className = 'ripple';
+      const size = Math.max(rect.width, rect.height);
+      ripple.style.width = ripple.style.height = size + 'px';
+      ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+      ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+      btn.appendChild(ripple);
+      ripple.addEventListener('animationend', () => ripple.remove());
+    }
+
+    /* ============ ACTION HANDLER ============ */
+    function handleAction(b) {
+      display.classList.add('active');
+      clearTimeout(display._timeout);
+      display._timeout = setTimeout(() => display.classList.remove('active'), 600);
+
+      switch (b.action) {
+        case 'num':
+          inputNumber(b.value);
+          break;
+        case 'decimal':
+          inputDecimal();
+          break;
+        case 'op':
+          inputOperator(b.value);
+          break;
+        case 'clear':
+          clearAll();
+          break;
+        case 'backspace':
+          backspace();
+          break;
+        case 'evaluate':
+          evaluate();
+          break;
+        case 'negate':
+          negate();
+          break;
+        case 'paren_open':
+          inputParenOpen();
+          break;
+        case 'paren_close':
+          inputParenClose();
+          break;
+        case 'func':
+          inputFunc(b.value);
+          break;
+        case 'postfix':
+          inputPostfix(b.value);
+          break;
+        case 'const':
+          inputConst(b.value);
+          break;
+        case 'wrap':
+          inputWrap(b.value);
+          break;
+        case 'factorial':
+          inputFactorial();
+          break;
+      }
+
+      updateDisplay();
+    }
+
+    /* ============ INPUT LOGIC ============ */
+    function inputNumber(n) {
+      if (justEvaluated) {
+        expression = '';
+        currentInput = '';
+        justEvaluated = false;
+      }
+      if (currentInput === '0' && n !== '0') {
+        currentInput = n;
+      } else if (currentInput === '0' && n === '0') {
+        // do nothing
+      } else {
+        currentInput += n;
+      }
+    }
+
+    function inputDecimal() {
+      if (justEvaluated) {
+        expression = '';
+        currentInput = '0.';
+        justEvaluated = false;
+        return;
+      }
+      if (!currentInput.includes('.')) {
+        currentInput += '.';
+      }
+    }
+
+    function inputOperator(op) {
+      justEvaluated = false;
+      expression += currentInput + ' ' + formatOp(op) + ' ';
+      currentInput = '0';
+    }
+
+    function inputParenOpen() {
+      if (justEvaluated) {
+        expression = '';
+        justEvaluated = false;
+      }
+      // If current input is not 0, treat it as implicit multiplication
+      if (currentInput !== '0') {
+        expression += currentInput + ' \u00D7 ';
+        currentInput = '0';
+      }
+      expression += '( ';
+    }
+
+    function inputParenClose() {
+      expression += currentInput + ' ) ';
+      currentInput = '0';
+    }
+
+    function inputFunc(fn) {
+      if (justEvaluated) {
+        // Apply function to last result
+        expression = fn;
+        currentInput = String(lastResult);
+        justEvaluated = false;
+        evaluate();
+        return;
+      }
+      if (currentInput !== '0') {
+        expression += fn;
+        expression += currentInput + ') ';
+        currentInput = '0';
+      } else {
+        expression += fn;
+      }
+    }
+
+    function inputPostfix(post) {
+      if (currentInput !== '0') {
+        expression += currentInput + post + ' ';
+        currentInput = '0';
+        evaluate();
+      }
+    }
+
+    function inputConst(c) {
+      if (justEvaluated) {
+        expression = '';
+        justEvaluated = false;
+      }
+      currentInput = c;
+      // Immediately resolve to numeric value for display
+      const val = eval(c);
+      currentInput = formatNumber(val);
+    }
+
+    function inputWrap(wrap) {
+      if (justEvaluated) {
+        expression = wrap;
+        currentInput = String(lastResult);
+        justEvaluated = false;
+        evaluate();
+        return;
+      }
+      if (currentInput !== '0') {
+        expression += wrap + currentInput + ') ';
+        currentInput = '0';
+        evaluate();
+      }
+    }
+
+    function inputFactorial() {
+      if (currentInput !== '0' && currentInput !== '') {
+        const n = parseInt(currentInput, 10);
+        if (n < 0 || n > 170) {
+          showError();
+          return;
+        }
+        const fact = factorial(n);
+        expression += currentInput + '! ';
+        currentInput = formatNumber(fact);
+        evaluate();
+      }
+    }
+
+    function factorial(n) {
+      if (n === 0 || n === 1) return 1;
+      let result = 1;
+      for (let i = 2; i <= n; i++) result *= i;
+      return result;
+    }
+
+    function negate() {
+      if (currentInput !== '0') {
+        if (currentInput.startsWith('-')) {
+          currentInput = currentInput.slice(1);
+        } else {
+          currentInput = '-' + currentInput;
+        }
+      }
+    }
+
+    function backspace() {
+      if (justEvaluated) {
+        clearAll();
+        return;
+      }
+      if (currentInput.length > 1) {
+        currentInput = currentInput.slice(0, -1);
+      } else {
+        currentInput = '0';
+      }
+    }
+
+    function clearAll() {
+      currentInput = '0';
+      expression = '';
+      lastResult = null;
+      justEvaluated = false;
+      resultEl.classList.remove('error-shake');
+    }
+
+    /* ============ EVALUATE ============ */
+    function evaluate() {
+      const fullExpr = expression + currentInput;
+      if (!fullExpr.trim()) return;
+
+      try {
+        // Build eval-safe expression (only numbers, operators, Math functions, parens)
+        let evalStr = fullExpr
+          .replace(/\u00F7/g, '/')
+          .replace(/\u00D7/g, '*')
+          .replace(/\u2212/g, '-');
+
+        // Validate: only allow safe characters
+        if (/[^0-9+\-*/.()%\s]/.test(evalStr.replace(/Math\.\w+/g, ''))) {
+          throw new Error('Invalid expression');
+        }
+
+        let result = Function('"use strict"; return (' + evalStr + ')')();
+
+        if (!isFinite(result)) {
+          showError();
+          return;
+        }
+
+        result = parseFloat(result.toPrecision(12));
+        const formatted = formatNumber(result);
+
+        // Add to history
+        addHistory(fullExpr, formatted);
+
+        exprEl.textContent = fullExpr + ' =';
+        currentInput = formatted;
+        expression = '';
+        lastResult = result;
+        justEvaluated = true;
+
+        // Pop animation
+        resultEl.classList.remove('pop');
+        void resultEl.offsetWidth;
+        resultEl.classList.add('pop');
+
+      } catch (e) {
+        showError();
+      }
+    }
+
+    function showError() {
+      resultEl.classList.remove('error-shake');
+      void resultEl.offsetWidth;
+      resultEl.classList.add('error-shake');
+      exprEl.textContent = expression + currentInput;
+      currentInput = 'Error';
+      justEvaluated = true;
+      setTimeout(() => {
+        if (currentInput === 'Error') clearAll();
+      }, 1200);
+    }
+
+    /* ============ DISPLAY ============ */
+    function updateDisplay() {
+      if (!justEvaluated) {
+        exprEl.textContent = expression;
+      }
+      resultEl.textContent = currentInput;
+
+      // Auto-shrink font for long numbers
+      const len = currentInput.length;
+      if (len > 14) resultEl.style.fontSize = '22px';
+      else if (len > 10) resultEl.style.fontSize = '28px';
+      else resultEl.style.fontSize = '';
+    }
+
+    function formatOp(op) {
+      switch(op) {
+        case '/': return '\u00F7';
+        case '*': return '\u00D7';
+        case '-': return '\u2212';
+        default: return op;
+      }
+    }
+
+    function formatNumber(n) {
+      if (Number.isInteger(n) && Math.abs(n) < 1e15) {
+        return n.toLocaleString('en-US');
+      }
+      return String(n);
+    }
+
+    /* ============ HISTORY ============ */
+    function addHistory(expr, result) {
+      history.unshift({ expr, result });
+      if (history.length > 50) history.pop();
+      renderHistory();
+    }
+
+    function renderHistory() {
+      historyEmpty.style.display = history.length === 0 ? 'flex' : 'none';
+
+      // Remove old items (not the empty placeholder)
+      const oldItems = historyList.querySelectorAll('.history-item');
+      oldItems.forEach(el => el.remove());
+
+      history.forEach((h, i) => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        item.style.animationDelay = (i * 0.04) + 's';
+        item.setAttribute('role', 'button');
+        item.setAttribute('tabindex', '0');
+        item.setAttribute('aria-label', h.expr + ' equals ' + h.result);
+
+        item.innerHTML = `
+          <div class="history-expr">${escapeHtml(h.expr)}</div>
+          <div class="history-result">= ${escapeHtml(h.result)}</div>
+        `;
+
+        item.addEventListener('click', () => loadHistory(h));
+        item.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            loadHistory(h);
+          }
+        });
+
+        historyList.appendChild(item);
+      });
+    }
+
+    function loadHistory(h) {
+      // Strip commas from result for further calculation
+      currentInput = h.result.replace(/,/g, '');
+      expression = '';
+      justEvaluated = true;
+      lastResult = parseFloat(currentInput);
+      exprEl.textContent = h.expr + ' =';
+      updateDisplay();
+      showToast('Result loaded');
+    }
+
+    clearHistoryBtn.addEventListener('click', () => {
+      history = [];
+      renderHistory();
+      showToast('History cleared');
+    });
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    /* ============ TOAST ============ */
+    let toastTimer;
+    function showToast(msg) {
+      clearTimeout(toastTimer);
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
+    }
+
+    /* ============ MODE TOGGLE ============ */
+    modeBasic.addEventListener('click', () => {
+      if (!isScientific) return;
+      isScientific = false;
+      modeBasic.classList.add('active');
+      modeSci.classList.remove('active');
+      renderButtons();
+    });
+
+    modeSci.addEventListener('click', () => {
+      if (isScientific) return;
+      isScientific = true;
+      modeSci.classList.add('active');
+      modeBasic.classList.remove('active');
+      renderButtons();
+    });
+
+    /* ============ KEYBOARD SUPPORT ============ */
+    document.addEventListener('keydown', (e) => {
+      const key = e.key;
+
+      // Find matching button and simulate press
+      if (/^[0-9]$/.test(key)) {
+        pressButton('num', key);
+      } else if (key === '.') {
+        handleAction({ action: 'decimal' });
+      } else if (key === '+') {
+        handleAction({ action: 'op', value: '+' });
+      } else if (key === '-') {
+        handleAction({ action: 'op', value: '-' });
+      } else if (key === '*') {
+        handleAction({ action: 'op', value: '*' });
+      } else if (key === '/') {
+        e.preventDefault();
+        handleAction({ action: 'op', value: '/' });
+      } else if (key === '%') {
+        handleAction({ action: 'op', value: '%' });
+      } else if (key === 'Enter' || key === '=') {
+        e.preventDefault();
+        handleAction({ action: 'evaluate' });
+      } else if (key === 'Backspace') {
+        handleAction({ action: 'backspace' });
+      } else if (key === 'Escape' || key === 'Delete') {
+        handleAction({ action: 'clear' });
+      } else if (key === '(') {
+        handleAction({ action: 'paren_open' });
+      } else if (key === ')') {
+        handleAction({ action: 'paren_close' });
+      }
+    });
+
+    function pressButton(type, value) {
+      const buttons = btnGrid.querySelectorAll('.btn.' + type);
+      buttons.forEach(btn => {
+        if (btn.textContent === value) {
+          btn.classList.add('pressed');
+          setTimeout(() => btn.classList.remove('pressed'), 120);
+        }
+      });
+      handleAction({ action: 'num', value });
+    }
+
+    /* ============ INIT ============ */
+    renderButtons();
+    updateDisplay();
+  </script>
+</body>
+</html>
